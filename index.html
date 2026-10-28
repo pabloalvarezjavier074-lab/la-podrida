@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10251d">
+<title>La Podrida — Tanteador</title>
+<style>
+:root{--bg:#f4f2ec;--ink:#17251e;--green:#173d2e;--lime:#d7f36a;--muted:#69756e;--card:#fffefa;--line:#e2e4dc;--red:#a83232}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:var(--green);color:white;padding:22px 18px 26px;border-radius:0 0 24px 24px}
+.kicker{text-transform:uppercase;letter-spacing:.16em;font-size:11px;color:var(--lime);font-weight:800}
+h1{font-size:32px;line-height:1;margin:8px 0}header p{margin:8px 0 0;color:#d8e4dc;font-size:14px}
+main{max-width:760px;margin:auto;padding:16px 14px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 3px 12px #14261a08}
+h2{font-size:17px;margin:0 0 12px}
+label{font-size:12px;font-weight:750;color:var(--muted);display:block;margin-bottom:6px}
+input,select{font:inherit;border:1px solid #d8ddd4;border-radius:10px;padding:10px;background:white;color:var(--ink);min-width:0;width:100%}
+button{font:inherit;font-weight:750;border:0;border-radius:12px;padding:12px 14px;cursor:pointer}
+.primary{background:var(--green);color:white;width:100%;margin-top:12px}.secondary{background:#e9eee7;color:var(--green)}.danger{background:#fae8e6;color:var(--red)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.players{display:grid;gap:10px}
+.player{border:1px solid var(--line);border-radius:14px;padding:12px}
+.playerhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.playerhead input{font-weight:750}
+.score{margin-left:auto;text-align:right;min-width:58px}.score strong{font-size:20px;display:block}.score small{font-size:10px;color:var(--muted)}
+.roundline{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px}
+.counter{display:flex;align-items:center;gap:8px}.counter button{width:38px;height:38px;padding:0;font-size:22px;background:#e9eee7;color:var(--green)}.counter b{min-width:18px;text-align:center;font-size:18px}
+.playerfields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.notice{font-size:13px;padding:11px 12px;border-radius:10px;background:#f0f4e8;margin-top:10px}
+.notice.error{background:#fae8e6;color:var(--red)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{flex:1}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:9px 5px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:11px;text-transform:uppercase}
+.empty{color:var(--muted);font-size:13px}
+footer{text-align:center;color:var(--muted);font-size:11px;margin:20px 0}
+@media(min-width:600px){.players{grid-template-columns:1fr 1fr}.player{min-width:0}}
+</style>
+</head>
+<body>
+<header><div class="kicker">Tanteador de mesa</div><h1>La Podrida ♠</h1><p>Primera base · apuestas, bazas y puntaje acumulado</p></header>
+<main>
+<section class="card">
+<h2>1. Armá la mesa</h2>
+<div class="grid2">
+<div><label for="count">Cantidad de jugadores</label><select id="count"><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
+<div><label for="round">Cartas por jugador</label><select id="round"></select></div>
+</div>
+<div style="margin-top:12px"><label for="dealer">Quién reparte</label><select id="dealer"></select></div>
+<div class="notice">Primera etapa: subimos de 1 carta en adelante. El triunfo se sigue llevando por fuera, como habíamos definido.</div>
+</section>
+<section class="card">
+<h2>2. Cargá apuestas y bazas ganadas</h2>
+<div id="players" class="players"></div>
+<div id="validation" class="notice">Completá las bazas ganadas al terminar la ronda.</div>
+<button id="save" class="primary">Guardar ronda y sumar puntos</button>
+</section>
+<section class="card">
+<div class="roundline"><h2 style="margin:0">3. Marcador acumulado</h2><button id="reset" class="secondary">Nueva partida</button></div>
+<div id="totals" style="margin-top:12px"></div>
+</section>
+<section class="card"><h2>Historial de rondas</h2><div id="history" class="empty">Todavía no se guardaron rondas.</div></section>
+<footer>Versión de prueba · Los datos quedan guardados en este dispositivo.</footer>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+let players=[], history=[], totals=[], currentRound=1;
+function setup(){
+ const n=+$(' #count'.trim()).value;
+ players=Array.from({length:n},(_,i)=>players[i]||{name:`Jugador ${i+1}`,bet:0,tricks:0});
+ totals=Array.from({length:n},(_,i)=>totals[i]||0);
+ $('round').innerHTML=Array.from({length:Math.max(1,13-n+1)},(_,i)=>`<option value="${i+1}">${i+1} ${i===0?'carta':'cartas'}</option>`).join('');
+ $('round').value=currentRound;
+ $('dealer').innerHTML=players.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join('');
+ renderPlayers();
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function renderPlayers(){
+ $('players').innerHTML=players.map((p,i)=>`<div class="player">
+ <div class="playerhead"><input aria-label="Nombre del jugador ${i+1}" data-name="${i}" value="${esc(p.name)}"><div class="score"><strong>${totals[i]||0}</strong><small>puntos</small></div></div>
+ <div class="playerfields">
+ <div><label>Apuesta</label><div class="counter"><button data-change="bet" data-i="${i}" data-d="-1">−</button><b>${p.bet}</b><button data-change="bet" data-i="${i}" data-d="1">+</button></div></div>
+ <div><label>Bazas ganadas</label><div class="counter"><button data-change="tricks" data-i="${i}" data-d="-1">−</button><b>${p.tricks}</b><button data-change="tricks" data-i="${i}" data-d="1">+</button></div></div>
+ </div></div>`).join('');
+ $('players').querySelectorAll('[data-name]').forEach(el=>el.addEventListener('change',()=>{players[+el.dataset.name].name=el.value.trim()||`Jugador ${+el.dataset.name+1}`;refreshDealer();}));
+ $('players').querySelectorAll('[data-change]').forEach(el=>el.addEventListener('click',()=>{let p=players[+el.dataset.i],k=el.dataset.change;p[k]=Math.max(0,Math.min(+$('round').value,+p[k]+ +el.dataset.d));renderPlayers();validate();}));
+}
+function refreshDealer(){const v=$('dealer').value;$('dealer').innerHTML=players.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join('');$('dealer').value=Math.min(+v,players.length-1)}
+function validate(){
+ const cards=+$('round').value,sum=players.reduce((a,p)=>a+p.bet,0),tricks=players.reduce((a,p)=>a+p.tricks,0);
+ const box=$('validation');let msg='';
+ if(sum===cards)msg='Al juego no le gustan las apuestas porque alguien tiene que perder.';
+ else if(players.some(p=>p.tricks>cards))msg='Nadie puede ganar más bazas que las cartas repartidas.';
+ else if(tricks>cards)msg='Las bazas ganadas entre todos no pueden superar las cartas de la ronda.';
+ else msg=`Apuestas totales: ${sum} de ${cards}. Bazas cargadas: ${tricks} de ${cards}.`;
+ box.textContent=msg;box.className='notice'+(sum===cards||players.some(p=>p.tricks>cards)||tricks>cards?' error':'');
+ $('save').disabled=sum===cards||players.some(p=>p.tricks>cards)||tricks>cards;
+ $('save').style.opacity=$('save').disabled?'.5':'1';
+}
+function renderTotals(){
+ $('totals').innerHTML=`<table><thead><tr><th>Jugador</th><th>Puntos</th></tr></thead><tbody>${players.map((p,i)=>`<tr><td>${esc(p.name)}</td><td><strong>${totals[i]||0}</strong></td></tr>`).join('')}</tbody></table>`;
+ $('history').innerHTML=history.length?`<table><thead><tr><th>Ronda</th><th>Jugador</th><th>Apuesta</th><th>Bazas</th><th>Puntos</th></tr></thead><tbody>${history.map(h=>h.map(v=>`<td>${esc(v)}</td>`).join('') .replace(/^/,'<tr>').concat('</tr>')).join('')}</tbody></table>`:'Todavía no se guardaron rondas.';
+}
+$('count').addEventListener('change',()=>{players=[];totals=[];history=[];currentRound=1;setup();renderTotals();validate();});
+$('round').addEventListener('change',()=>{currentRound=+$('round').value;players.forEach(p=>{p.bet=Math.min(p.bet,currentRound);p.tricks=Math.min(p.tricks,currentRound)});renderPlayers();validate();});
+$('save').addEventListener('click',()=>{
+ validate();if($('save').disabled)return;
+ players.forEach((p,i)=>{const pts=p.bet===p.tricks?10+p.bet:Math.abs(p.bet-p.tricks)*-5;totals[i]=(totals[i]||0)+pts;history.push([`R${currentRound}`,p.name,p.bet,p.tricks,pts>=0?`+${pts}`:pts]);});
+ currentRound=+$('round').value+1;
+ const max=+$('round').options[$('round').options.length-1].value;
+ if(currentRound>max)currentRound=1;
+ $('round').value=currentRound;players.forEach(p=>{p.bet=0;p.tricks=0});setup();renderTotals();validate();
+});
+$('reset').addEventListener('click',()=>{if(confirm('¿Borrar el marcador y el historial de esta partida?')){totals=players.map(()=>0);history=[];currentRound=1;players.forEach(p=>{p.bet=0;p.tricks=0});setup();renderTotals();validate();}});
+setup();renderTotals();validate();
+</script>
+</body>
+</html>
